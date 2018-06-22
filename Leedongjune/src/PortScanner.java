@@ -25,13 +25,15 @@ ExecutionException{
 		}
 		es.awaitTermination(200L, TimeUnit.MILLISECONDS);
 		int openPorts = 0;
+		String openPortNumber = "";
 		for(final Future<ScanResult>f : futures) {
 			if(f.get().isOpen()) {
 				openPorts++;
-				System.out.println(f.get().getPort());
+				openPortNumber += f.get().getPort()+",";
 			}
 		}
-		System.out.println("There are" + openPorts+"open ports on host"+ip+"(probed with a timeout of" + timeout + "ms)");
+		System.out.println(openPortNumber.substring(0,openPortNumber.length()-1));
+		System.out.println();
 		}
 		public static Future<ScanResult> portIsOpen(final ExecutorService es, final String ip, final int port, final int timeout){
 			return es.submit(new Callable<ScanResult>() {
@@ -42,38 +44,10 @@ ExecutionException{
 						socket.connect(new InetSocketAddress(ip, port), timeout);
 						socket.close();
 						return new ScanResult(port, true);
-					} catch (IOException e) {
+					} catch (Exception e) {
 						return new ScanResult(port, false);
-					}
-				}
-			});
-		}
-		
-		public static class ScanResult {
-			private int port;
-			
-			private boolean isOpen;
-			
-			public ScanResult(int port, boolean isOpen) {
-				super();
-				this.port = port;
-				this. isOpen = isOpen;
+				}	
 			}
-			
-			public int getPort() {
-			return port;
-		    }
-		
-			public void setPort(int port) {
-				this.port = port;
-			}
-			
-			public boolean isOpen() {
-				return isOpen;
-			}
-			
-			public void setOpen(boolean isOpen) {
-				this.isOpen = isOpen;
-			}
-		}
+		});
+	}
 }

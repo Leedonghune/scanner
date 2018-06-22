@@ -4,8 +4,20 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import javax.swing.JProgressBar;
 
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
@@ -22,8 +34,11 @@ import javax.swing.border.BevelBorder;
 
 public class OutlinePing extends JFrame {
 
+	
 	public OutlinePing(){
 		//menu begin
+		super("IP Range-Anagry IP Scanner");
+		
 		JMenuBar menubar = new JMenuBar();
 		setJMenuBar(menubar);
 		
@@ -138,29 +153,29 @@ public class OutlinePing extends JFrame {
 		//menu end
 		
 		//status bar begim
-		
+		JProgressBar pr = new JProgressBar(0,0,100);
 		JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 		statusPanel.setBorder(new BevelBorder(BevelBorder.LOWERED));
 		add(statusPanel, BorderLayout.SOUTH);
 		JLabel readyLabel = new JLabel("Ready");
 		readyLabel.setPreferredSize(new Dimension(200,16));
-		readyLabel.setBorder(new BevelBorder(BevelBorder.RAISED));
+		readyLabel.setBorder(new BevelBorder(BevelBorder.LOWERED));
 		JLabel displayLabel = new JLabel("Display:All");
 		displayLabel.setPreferredSize(new Dimension(140,16));
-		displayLabel.setBorder(new BevelBorder(BevelBorder.RAISED));
+		displayLabel.setBorder(new BevelBorder(BevelBorder.LOWERED));
 		JLabel threadLabel = new JLabel("Thread:0");
 		threadLabel.setPreferredSize(new Dimension(140,16));
-		threadLabel.setBorder(new BevelBorder(BevelBorder.RAISED));
+		threadLabel.setBorder(new BevelBorder(BevelBorder.LOWERED));
 		statusPanel.add(readyLabel);
 		statusPanel.add(displayLabel);
 		statusPanel.add(threadLabel);
-		
+		statusPanel.add(pr);
 		
 		//status bar end
 		
 		//table begin
 		String[] titles = new String[] {
-			"¡èIP", "Ping", "TTL", "Hostname", "Ports [4+]"	
+			"IP", "Ping", "TTL", "Hostname", "Ports[4+]"	
 		};
 		Object[][] stats = initTable();
 		JTable jTable = new JTable(stats,titles);
@@ -180,8 +195,13 @@ public class OutlinePing extends JFrame {
 		JTextField rangeStartTextField = new JTextField(10);
 		JLabel rangeEndLabel = new JLabel("to");
 		JTextField rangeEndTextField = new JTextField(10);
+		String ipRange[]= {"IP Range","Random"};
+		JComboBox iprange = new JComboBox(ipRange);
 		
-		rangeStartLabel.setFont(myFont);
+		ImageIcon icon2 = new ImageIcon("./icon/µµ±¸.png");
+	    JButton button2 = new JButton(icon2);
+	    
+	    rangeStartLabel.setFont(myFont);
 		rangeStartLabel.setPreferredSize(new Dimension(72,30));
 		rangeEndLabel.setFont(myFont);
 		rangeEndLabel.setPreferredSize(new Dimension(15,30));
@@ -191,6 +211,8 @@ public class OutlinePing extends JFrame {
 		toolbar1.add(rangeStartTextField);
 		toolbar1.add(rangeEndLabel);
 		toolbar1.add(rangeEndTextField);
+		toolbar1.add(iprange);
+		toolbar1.add(button2);
 		
 		JLabel hostNameLabel = new JLabel("Hostname: ");
 		JTextField hostNameTextField = new JTextField(10);
@@ -198,8 +220,11 @@ public class OutlinePing extends JFrame {
 		JComboBox optionComboBox = new JComboBox();
 		optionComboBox.addItem("/24");
 		optionComboBox.addItem("/26");
-		JButton startButton = new JButton("¡æStart");
+		JButton startButton = new JButton("¢ºStart");
 		
+		ImageIcon icon = new ImageIcon("./icon/Æú´þ.png");
+	    JButton button = new JButton(icon);
+	    
 		hostNameLabel.setFont(myFont);
 		hostNameTextField.setPreferredSize(new Dimension(90, 30));
 		upButton.setPreferredSize(new Dimension(50, 30));
@@ -211,6 +236,7 @@ public class OutlinePing extends JFrame {
 		toolbar2.add(upButton);
 		toolbar2.add(optionComboBox);
 		toolbar2.add(startButton);
+		toolbar2.add(button);
 		
 		JPanel pane = new JPanel(new BorderLayout());
 		pane.add(toolbar1, BorderLayout.NORTH);
@@ -236,19 +262,22 @@ public class OutlinePing extends JFrame {
 		rangeEndTextField.setText(fixedIp + "254");
 		hostNameTextField.setText(myHostname);
 		
-		setSize(700,700);
+		setSize(670,400);
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setVisible(true);
 		
 		startButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				Pinging[] pg = new Pinging[254];
+				startButton.setText("¡ástop");
 				
 				for(int i=0; i<=253; i++){
 					pg[i] = new Pinging(fixedIp+ (i+1));
+					
 					pg[i].start();
 				}
 				for(int i=0; i<=253; i++) {
+					String ip = fixedIp+ (i+1);
 					Object[] msg = pg[i].getMsg();
 					stats[i][0] = msg[0];
 					if(msg[1] != null) {
@@ -265,6 +294,35 @@ public class OutlinePing extends JFrame {
 						stats[i][3] = msg[3];
 					} else {
 						stats[i][3] = "[n/s]";
+					
+					}if(msg[1] != null && msg[2] !=null && msg[3] != null) {
+						final ExecutorService es = Executors.newFixedThreadPool(20);
+						final int timeout = 30;
+						final List<Future<ScanResult>> futures = new ArrayList<>();
+						//655335, 1024
+						int openPorts = 0;
+						String openPortNumber = "";
+						for(int port = 1; port<= 1024; port++) {
+						//for(int port = 1;port <=80; port++){
+							futures.add(portIsOpen(es, ip, port, timeout));
+						}
+						try {
+							es.awaitTermination(200L, TimeUnit.MILLISECONDS);
+							for(final Future<ScanResult>f : futures) {
+								if(f.get().isOpen()) {
+									openPorts++;
+									openPortNumber += f.get().getPort()+",";
+								}
+								if (!(openPortNumber.equals("")))
+									stats[i][4]=openPortNumber.substring(0,openPortNumber.length()-1);
+								if(openPortNumber.equals(""))
+									stats[i][4] = "[n/s]";
+									
+									
+							}
+						} catch (Exception e1) {
+							e1.printStackTrace();
+						}
 					}
 				}
 					//msg[1] != null || msg[2] !=null || msg[3] != null
@@ -272,11 +330,27 @@ public class OutlinePing extends JFrame {
 					//scan value == null => stats[i][4] = "[n/s]"
 					//scan value != null => assign value stats[i][4]
 				
+				//System.out.println(openPortNumber.substring(0,openPortNumber.length()-1));
+				System.out.println();
 				jTable.repaint();
 			}
 		});
 	}
-	
+	public static Future<ScanResult> portIsOpen(final ExecutorService es, final String ip, final int port, final int timeout){
+		return es.submit(new Callable<ScanResult>() {
+			@Override
+			public ScanResult call() {
+				try {
+					Socket socket=new Socket();
+					socket.connect(new InetSocketAddress(ip, port), timeout);
+					socket.close();
+					return new ScanResult(port, true);
+				} catch (IOException e) {
+					return new ScanResult(port, false);
+			}
+		}
+	});
+}
 	public Object[][] initTable() {
 		
 		Object[][] result = new Object[254][5];

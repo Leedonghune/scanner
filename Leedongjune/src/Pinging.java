@@ -11,10 +11,9 @@ public class Pinging extends Thread {
 		this.ip = ip;
 		msg = new Object[4];
 	}
-	
 	@Override
 	public void run() {
-		BufferedReader br=null;
+		BufferedReader br = null;
 		try {
 			Runtime runtime = Runtime.getRuntime();
 			Process process = runtime.exec("ping -a " + ip);
